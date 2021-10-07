@@ -1,12 +1,8 @@
-# Completion Item Provider Sample
+# Navigate Pascal Ligo projects by naive searches using `git grep`
 
-This sample shows how to provide completions aka IntelliSense into the editor. The sample uses the `CompletionItemProvider` api.
+Implements "Go to definition" for Pascal Ligo dialect of Tezos smart contract language
 
-![Sample](demo.gif)
-
-
-## VS Code API
-
-### `vscode` module
-
-- [`languages.registerCompletionItemProvider`](https://code.visualstudio.com/api/references/vscode-api#languages.registerCompletionItemProvider)
++ Makes strong assumptions on your project code formatting
++ Requires workspace folder to be checked into git
++ Loads and navigates in few milliseconds as opposed to fully-fledged Language servers
++ Doesn't build AST, often misses and yields false positives
