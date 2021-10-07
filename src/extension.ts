@@ -4,17 +4,21 @@
 
 import * as vscode from 'vscode';
 
+import { execSync } from "child_process";
+
 async function sleep(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 
 export function activate(context: vscode.ExtensionContext) {
+	if (vscode.workspace.workspaceFolders == undefined) { return } //only works for workspaces
 
-	const provider = vscode.languages.registerDeclarationProvider(
+	const provider = vscode.languages.registerDefinitionProvider(
 		'ligo',
 		{
-			provideDeclaration(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+			provideDefinition(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken) {
+
 				const range: vscode.Range = document.getWordRangeAtPosition(position)!
 				const word = document.getText(range)
 
@@ -23,9 +27,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 				const prevSymbolRange = new vscode.Range(range.start.with({ character: range.start.character - 1 }), range.start)
 				const prevSymbol = document.getText(prevSymbolRange)
-
-				const twoSymbolsBackRange = new vscode.Range(range.start.with({ character: range.start.character - 2 }), range.start)
-				const twoSymbolsBack = document.getText(twoSymbolsBackRange).trimEnd()
 
 				const isFirstLetterUppercase = word[0].toUpperCase() == word[0]
 
@@ -38,30 +39,43 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				}
 				else if (prevSymbol == ".") {
-					query = word + "\\s+: " //word with multiple spaces and semicolon and space
+					query = " " + word + "\\s+: " //word with multiple spaces and semicolon and space
 				}
-				else {//if (twoSymbolsBack == ":") {
-					query = "type " + word
+				else {
+					query = "type " + word + " "
 				}
+
+				const locations: vscode.Location[] = []
 
 				if (query) {
-					const declarations = vscode.commands.executeCommand("workbench.action.findInFiles", {
-						query: query,
-						triggerSearch: true,
-						isRegex: true,
-						matchWholeWord: true
-					})
+					if (vscode.workspace.workspaceFolders !== undefined) {
+						console.log(`git grep --untracked -n -I -G "${query}"`)
+						const searches = execSync(`git grep --untracked -n -I -E "${query}"`, {
+							cwd: vscode.workspace.workspaceFolders[0].uri.path,
+							encoding: 'utf8',
+							maxBuffer: 50 * 1024 * 1024
+						})
+						if (searches) {
+							const findings = searches.split("\n")
+							for (const finding of findings) {
+								if (finding == "") continue
+								const [file, line, text] = finding.split(":")
 
-					declarations
-						.then(() => sleep(100))
-						.then(() => vscode.commands.executeCommand("search.action.focusNextSearchResult", {
-							when: "hasSearchResult"
-						}))
+								// find a word cursor to highlight it properly
+								const vscodeLine = parseInt(line) - 1
+								const rangeStartColumn = text.indexOf(word)
+								const rangeStartPos = new vscode.Position(vscodeLine, rangeStartColumn)
+								const rangeEndPos = new vscode.Position(vscodeLine, rangeStartColumn + word.length)
+								const range = new vscode.Range(rangeStartPos, rangeEndPos)
 
-					// return declarations
-					return []
+								const path = vscode.workspace.workspaceFolders[0].uri.path + "/" + file
+								const location: vscode.Location = new vscode.Location(vscode.Uri.parse(path), range)
+								locations.push(location)
+							}
+						}
+					}
 				}
-				return []
+				return locations
 			}
 		}
 	)
