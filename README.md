@@ -6,3 +6,4 @@ Implements "Go to definition" for Pascal Ligo dialect of Tezos smart contract la
 + Requires workspace folder to be checked into git
 + Loads and navigates in few milliseconds as opposed to fully-fledged Language servers
 + Doesn't build AST, often misses and yields false positives
++ Might require pascaligo-vscode package to identify `ligo` language

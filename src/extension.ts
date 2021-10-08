@@ -49,9 +49,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 				if (query) {
 					if (vscode.workspace.workspaceFolders !== undefined) {
-						console.log(`git grep --untracked -n -I -G "${query}"`)
+						// console.log(`git grep --untracked -n -I -E "${query}"`)
+						const workingDir = vscode.workspace.getWorkspaceFolder(document.uri)!
 						const searches = execSync(`git grep --untracked -n -I -E "${query}"`, {
-							cwd: vscode.workspace.workspaceFolders[0].uri.path,
+							cwd: workingDir.uri.path,
 							encoding: 'utf8',
 							maxBuffer: 50 * 1024 * 1024
 						})
@@ -68,7 +69,7 @@ export function activate(context: vscode.ExtensionContext) {
 								const rangeEndPos = new vscode.Position(vscodeLine, rangeStartColumn + word.length)
 								const range = new vscode.Range(rangeStartPos, rangeEndPos)
 
-								const path = vscode.workspace.workspaceFolders[0].uri.path + "/" + file
+								const path = workingDir.uri.path + "/" + file
 								const location: vscode.Location = new vscode.Location(vscode.Uri.parse(path), range)
 								locations.push(location)
 							}

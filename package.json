@@ -2,7 +2,7 @@
 	"name": "naive-ligo-navigation",
 	"displayName": "Naive Ligo Navigation",
 	"description": "Navigates Pascal Ligo by naive searches using `git grep`",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"publisher": "JulianKonchunas",
 	"private": true,
 	"license": "MIT",
