@@ -51,7 +51,10 @@ export function activate(context: vscode.ExtensionContext) {
 					if (vscode.workspace.workspaceFolders !== undefined) {
 						// console.log(`git grep --untracked -n -I -E "${query}"`)
 						const workingDir = vscode.workspace.getWorkspaceFolder(document.uri)!
-						const searches = execSync(`git grep --untracked -n -I -E "${query}"`, {
+
+						// ':/*.*ligo' to search in ligo files from the top directory
+						// --full-name to show paths from repo root
+						const searches = execSync(`git grep --full-name --untracked -n -I -E "${query}" -- ':/*.*ligo'`, {
 							cwd: workingDir.uri.path,
 							encoding: 'utf8',
 							maxBuffer: 50 * 1024 * 1024
