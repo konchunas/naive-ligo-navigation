@@ -30,16 +30,27 @@ export function activate(context: vscode.ExtensionContext) {
 
 				const isFirstLetterUppercase = word[0].toUpperCase() == word[0]
 
+				const isInDoubleQuotes = prevSymbol == '"' && nextSymbol == '"'
+
 				let query = null
 				if (nextSymbol == "(") {
 					if (isFirstLetterUppercase) {
 						query = "[|]\\s+" + word // pipe and then multiple spaces and the word
 					} else {
-						query = "function " + word
+						query = function_pattern(word)
 					}
 				}
 				else if (prevSymbol == ".") {
 					query = " " + word + "\\s+: " //word with multiple spaces and semicolon and space
+				}
+				else if (prevSymbol == "%") {
+					query = function_pattern(word)
+				}
+				else if (isInDoubleQuotes) {
+					if (line.includes("call_view")) {
+						query = "\\[@view\\]" + "\\s+" //[@view] tag with multiple spaces
+						query += function_pattern(word)	//followed by a function matcher
+					}
 				}
 				else {
 					query = "type " + word + " "
