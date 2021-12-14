@@ -10,6 +10,7 @@ async function sleep(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+const functionPattern = (word: string) => "function " + word + "\\s*[(]" //zero or more spaces followed by opening bracket
 
 export function activate(context: vscode.ExtensionContext) {
 	if (vscode.workspace.workspaceFolders == undefined) { return } //only works for workspaces
@@ -37,19 +38,19 @@ export function activate(context: vscode.ExtensionContext) {
 					if (isFirstLetterUppercase) {
 						query = "[|]\\s+" + word // pipe and then multiple spaces and the word
 					} else {
-						query = function_pattern(word)
+						query = functionPattern(word)
 					}
 				}
 				else if (prevSymbol == ".") {
 					query = " " + word + "\\s+: " //word with multiple spaces and semicolon and space
 				}
 				else if (prevSymbol == "%") {
-					query = function_pattern(word)
+					query = functionPattern(word)
 				}
 				else if (isInDoubleQuotes) {
 					if (line.includes("call_view")) {
 						query = "\\[@view\\]" + "\\s+" //[@view] tag with multiple spaces
-						query += function_pattern(word)	//followed by a function matcher
+						query += functionPattern(word)	//followed by a function matcher
 					}
 				}
 				else {
