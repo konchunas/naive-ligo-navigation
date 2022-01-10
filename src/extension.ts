@@ -6,44 +6,56 @@ import * as vscode from 'vscode';
 
 import { execSync } from "child_process";
 
-async function sleep(ms: number) {
-	return new Promise(resolve => setTimeout(resolve, ms));
+declare global {
+	interface String {
+		lastIndexOfRegex(regex: RegExp, fromIndex: number): number;
+	}
+}
+String.prototype.lastIndexOfRegex = function (regex: RegExp, fromIndex: number) {
+	var str = fromIndex ? this.substring(0, fromIndex) : this;
+	var match = str.match(regex);
+	return match ? str.lastIndexOf(match[match.length - 1]) : -1;
 }
 
 const functionPattern = (word: string) => "function " + word + "\\s*[(]" //zero or more spaces followed by opening bracket
-const incompleteFunctionPattern = (word: string) => "function " + word
+const incompleteFunctionPattern = (partOfName: string) => "function " + "(.*?)" + partOfName
 
 /// Search in the folder's `*.*ligo` files using `git grep`
 /// @param `query` is a regexp we search for
 /// @param `wordToHighlight` is the specific word we highlight after query is found
-const gitGrep = (workingDir: vscode.WorkspaceFolder, query: string, wordToHighlight: string) => {
-	const locations: vscode.Location[] = []
+const gitGrep = (workspacePath: string, query: string): string[] => {
 
 	// ':/*.*ligo' to search in ligo files from the top directory
 	// --full-name to show paths from repo root
 	const searches = execSync(`git grep --full-name --untracked -n -I -E "${query}" -- ':/*.*ligo'`, {
-		cwd: workingDir.uri.path,
+		cwd: workspacePath,
 		encoding: 'utf8',
 		maxBuffer: 50 * 1024 * 1024
 	})
 
 	if (searches) {
-		const findings = searches.split("\n")
-		for (const finding of findings) {
-			if (finding == "") continue
-			const [file, line, text] = finding.split(":")
+		console.log(searches)
+		return searches.split("\n").filter((res) => res != "")
+	}
+	return []
+}
 
-			// find a word cursor to highlight it properly
-			const vscodeLine = parseInt(line) - 1
-			const rangeStartColumn = text.indexOf(wordToHighlight)
-			const rangeStartPos = new vscode.Position(vscodeLine, rangeStartColumn)
-			const rangeEndPos = new vscode.Position(vscodeLine, rangeStartColumn + wordToHighlight.length)
-			const range = new vscode.Range(rangeStartPos, rangeEndPos)
+const searchesToLocations = (workspacePath: string, searches: string[], wordToHighlight: string): vscode.Location[] => {
+	const locations: vscode.Location[] = []
 
-			const path = workingDir.uri.path + "/" + file
-			const location: vscode.Location = new vscode.Location(vscode.Uri.parse(path), range)
-			locations.push(location)
-		}
+	for (const entry of searches) {
+		const [file, line, text] = entry.split(":")
+
+		// find a word cursor to highlight it properly
+		const vscodeLine = parseInt(line) - 1
+		const rangeStartColumn = text.indexOf(wordToHighlight)
+		const rangeStartPos = new vscode.Position(vscodeLine, rangeStartColumn)
+		const rangeEndPos = new vscode.Position(vscodeLine, rangeStartColumn + wordToHighlight.length)
+		const range = new vscode.Range(rangeStartPos, rangeEndPos)
+
+		const path = workspacePath + "/" + file
+		const location: vscode.Location = new vscode.Location(vscode.Uri.parse(path), range)
+		locations.push(location)
 	}
 	return locations
 }
@@ -98,8 +110,10 @@ export function activate(context: vscode.ExtensionContext) {
 
 				if (query) {
 					if (vscode.workspace.workspaceFolders !== undefined) {
-						const workingDir = vscode.workspace.getWorkspaceFolder(document.uri)!
-						return gitGrep(workingDir, query, word)
+						const currentWorkspace = vscode.workspace.getWorkspaceFolder(document.uri)!
+						const workingDir = currentWorkspace.uri.path
+						const searches = gitGrep(workingDir, query)
+						return searchesToLocations(workingDir, searches, word)
 					}
 				}
 				return null
@@ -113,14 +127,31 @@ export function activate(context: vscode.ExtensionContext) {
 				const symbols: vscode.SymbolInformation[] = [];
 				const query = incompleteFunctionPattern(word)
 				if (vscode.workspace.workspaceFolders !== undefined) {
-					for (const path of vscode.workspace.workspaceFolders) {
-						const folder = vscode.workspace.getWorkspaceFolder(path.uri)!
-						console.log("Looking in folders", folder)
+					for (const folder of vscode.workspace.workspaceFolders) {
+						// const folder = vscode.workspace.getWorkspaceFolder(path.uri)!
+						console.log("Looking in folder", folder.uri.path)
 						console.log("Query", query)
-						const locations = gitGrep(folder, query, word)
-						console.log(locations)
-						for (const location of locations) {
-							const symbol = new vscode.SymbolInformation(word, vscode.SymbolKind.Function, "here", location)
+						const searches = gitGrep(folder.uri.path, query)
+						console.log("Found", searches.length)
+						for (const entry of searches) {
+							const [file, line, text] = entry.split(":")
+
+							const vscodeLine = parseInt(line) - 1
+							const rangeStartColumn = text.indexOf(word)
+							const wordStart = text.lastIndexOfRegex(/[^A-Za-z0-9_]/g, rangeStartColumn) + 1
+							const wordLength = text.substring(rangeStartColumn).search(/[^A-Za-z0-9_]/g)
+
+							const rangeStartPos = new vscode.Position(vscodeLine, wordStart)
+							const rangeEndPos = new vscode.Position(vscodeLine, rangeStartColumn + wordLength)
+							const range = new vscode.Range(rangeStartPos, rangeEndPos)
+
+							const fullName = text.substring(wordStart, rangeStartColumn + wordLength)
+							console.log("full name", fullName)
+
+							const path = folder.uri.path + "/" + file
+							const location: vscode.Location = new vscode.Location(vscode.Uri.parse(path), range)
+							console.log()
+							const symbol = new vscode.SymbolInformation(fullName, vscode.SymbolKind.Function, "", location)
 							symbols.push(symbol)
 						}
 					}
